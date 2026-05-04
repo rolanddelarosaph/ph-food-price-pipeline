@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# dbt
+target/
+dbt_packages/
+logs/
+
+# Credentials — never upload these
+src/config.py
+
+# Data files — too large for GitHub
+data/raw/*.csv
+data/raw/*.xlsx
+
+# Logs
+*.log
+pipeline.log
+
+# Mac
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/

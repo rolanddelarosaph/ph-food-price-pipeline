@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: ph_food_pipeline
+    schema: bronze
+    tables:
+      - name: bronze_wfp_food_prices
+      - name: bronze_psa_cpi
+      - name: bronze_bsp_exchange_rate
