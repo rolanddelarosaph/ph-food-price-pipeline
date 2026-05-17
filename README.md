@@ -53,7 +53,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 **What this pipeline processes:**
 - 121,512 rows of WFP market food prices across 17 Philippine regions
 - 179,289 rows of PSA Consumer Price Index data (regional, monthly)
-- 101+ rows of BSP USD/PHP exchange rates, appended live each run
+- 101+ rows of BSP monthly USD/PHP exchange rates — historical CSV seeded from Jan 2018, with live API appending one new row each monthly run
 - 20 dbt data quality tests — all passing
 
 ---
@@ -77,7 +77,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 |---|---|---|---|
 | [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) | Actual market food prices, 17 PH regions | CSV | 121,512 |
 | [PSA OpenSTAT](https://openstat.psa.gov.ph/) | Official Consumer Price Index by region | Excel (3 files) | 179,289 |
-| [BSP API](https://www.bsp.gov.ph/) | Live USD/PHP exchange rate | JSON API | 101+ (live) |
+| [BSP / fawazahmed0 Currency API](https://www.bsp.gov.ph/) | Monthly USD/PHP exchange rate — 100 months historical (Jan 2018–Apr 2026) + live API appends current month each run | CSV + JSON API | 101+ (compounding) |
 
 ---
 
