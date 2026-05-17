@@ -53,7 +53,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 **What this pipeline processes:**
 - 121,512 rows of WFP market food prices across 17 Philippine regions
 - 179,289 rows of PSA Consumer Price Index data (regional, monthly)
-- 101+ rows of BSP monthly USD/PHP exchange rates — historical CSV seeded from Jan 2018, with live API appending one new row each monthly run
+- 101+ rows of BSP monthly USD/PHP exchange rates — historical CSV from Jan 2018, with live API appending one new row each monthly run
 - 20 dbt data quality tests — all passing
 
 ---
@@ -77,24 +77,27 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 |---|---|---|---|
 | [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) | Actual market food prices, 17 PH regions | CSV | 121,512 |
 | [PSA OpenSTAT](https://openstat.psa.gov.ph/) | Official Consumer Price Index by region | Excel (3 files) | 179,289 |
-| [BSP / fawazahmed0 Currency API](https://www.bsp.gov.ph/) | Monthly USD/PHP exchange rate — 100 months historical (Jan 2018–Apr 2026) + live API appends current month each run | CSV + JSON API | 101+ (compounding) |
+| [BSP / fawazahmed0 Currency API](https://www.bsp.gov.ph/) | Monthly USD/PHP rate — 100 months historical (Jan 2018–Apr 2026) + live API appends current month each run | CSV + JSON API | 101+ (compounding) |
 
 ---
 
 ## 🗂️ Project Structure
 
 ```
-ph-food-pipeline/
+ph-food-price-pipeline/
 │
 ├── dags/
 │   └── ph_food_pipeline_dag.py         # Airflow DAG — monthly 4-task pipeline
 │
 ├── data/
-│   └── raw/                            # Source data files
-│       ├── wfp_food_prices_phl.csv
-│       ├── psa_cpi_2018_2020.xlsx
-│       ├── psa_cpi_2021_2023.xlsx
-│       └── psa_cpi_2024_2026.xlsx
+│   ├── raw/                            # Source data files
+│   │   ├── wfp_food_prices_phl.csv
+│   │   ├── psa_cpi_2018_2020.xlsx
+│   │   ├── psa_cpi_2021_2023.xlsx
+│   │   ├── psa_cpi_2024_2026.xlsx
+│   │   └── bsp_monthly_rates.csv       # BSP historical rates — compounds each run
+│   └── exports/
+│       └── ph_food_price_gold.csv      # Gold layer export used by notebooks
 │
 ├── docs/                               # Architecture diagram and dashboard assets
 │   ├── architecture.png
@@ -127,7 +130,7 @@ ph-food-pipeline/
 │   └── dbt_project.yml
 │
 ├── src/
-│   ├── config.py                       # Snowflake connection config
+│   ├── config.py                       # Snowflake connection config (env vars)
 │   ├── ingest.py                       # Ingestion functions (WFP, PSA, BSP)
 │   └── categorical_insert.py           # Dimension insert helpers
 │
@@ -149,7 +152,7 @@ Three tables loaded as-is from each source. No transformations. The Bronze layer
 |---|---|---|
 | `bronze_wfp_food_prices` | WFP CSV | 121,512 |
 | `bronze_psa_cpi` | PSA Excel (3 files) | 179,289 |
-| `bronze_bsp_exchange_rate` | BSP live API | 101+ |
+| `bronze_bsp_exchange_rate` | BSP historical CSV + live API | 101+ (compounding) |
 
 ---
 
@@ -279,13 +282,19 @@ This notebook focuses on two analyses: regional inflation gap decomposition usin
 
 ```bash
 # Clone the repository
-git clone https://github.com/rolanddelarosaph/ph-food-pipeline.git
-cd ph-food-pipeline
+git clone https://github.com/rolanddelarosaph/ph-food-price-pipeline.git
+cd ph-food-price-pipeline
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure Snowflake credentials in src/config.py
+# Set up environment variables — create a .env file in the project root:
+# SNOWFLAKE_ACCOUNT=your_account
+# SNOWFLAKE_USER=your_user
+# SNOWFLAKE_PASSWORD=your_password
+# SNOWFLAKE_WAREHOUSE=your_warehouse
+# SNOWFLAKE_DATABASE=ph_food_pipeline
+# SNOWFLAKE_ROLE=your_role
 
 # Initialize Snowflake environment
 # Run sql/initialize_food_pipeline.sql in your Snowflake worksheet
@@ -306,8 +315,8 @@ dbt test
 jupyter notebook notebooks/
 ```
 
-Run Part 1 first, then Part 2. Both notebooks load from the Gold layer CSV export from Snowflake.
+Run Part 1 first, then Part 2. Both notebooks load from `data/exports/ph_food_price_gold.csv` — the Gold layer export from Snowflake.
 
 ---
 
-*Data sources: [[WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) · [PSA OpenSTAT](https://openstat.psa.gov.ph/) · [Bangko Sentral ng Pilipinas](https://www.bsp.gov.ph/) · Built: May 2026*
+*Data sources: [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) · [PSA OpenSTAT](https://openstat.psa.gov.ph/) · [Bangko Sentral ng Pilipinas](https://www.bsp.gov.ph/) · Built: May 2026*
