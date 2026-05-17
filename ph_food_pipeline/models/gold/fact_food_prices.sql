@@ -34,12 +34,13 @@ dim_date AS (
     SELECT * FROM {{ ref('dim_date') }}
 ),
 
--- Get latest exchange rate available
-latest_fx AS (
-    SELECT usd_php_rate
+-- Get monthly exchange rate matched to price date
+monthly_fx AS (
+    SELECT
+        rate_year,
+        rate_month,
+        usd_php_rate
     FROM fx
-    ORDER BY rate_date DESC
-    LIMIT 1
 ),
 
 -- Join CPI to food prices on region + year + month
@@ -121,7 +122,9 @@ enriched AS (
         ON fp.region_name = cf.region_name
         AND fp.price_year = cf.cpi_year
         AND fp.price_month = cf.cpi_month_num
-    CROSS JOIN latest_fx lx
+    LEFT JOIN monthly_fx lx
+    ON fp.price_year = lx.rate_year
+    AND fp.price_month = lx.rate_month
 )
 
 SELECT * FROM enriched

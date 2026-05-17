@@ -1,29 +1,29 @@
+# Logs
+logs/
+*.log
+pipeline.log
+
+# dbt compiled artifacts
+ph_food_pipeline/target/
+ph_food_pipeline/dbt_packages/
+
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .env
-venv/
-.venv/
 
-# dbt
-target/
-dbt_packages/
-logs/
+# Large data files
+data/raw/wfp_food_prices_phl.csv
+data/raw/psa_cpi_*.xlsx
 
-# Credentials — never upload these
-src/config.py
+# Jupyter checkpoints
+.ipynb_checkpoints/
 
-# Data files — too large for GitHub
-data/raw/*.csv
-data/raw/*.xlsx
-
-# Logs
-*.log
-pipeline.log
-
-# Mac
+# macOS
 .DS_Store
 
-# Jupyter
-.ipynb_checkpoints/
+# Airflow
+airflow.db
+airflow.cfg
+.DS_Store

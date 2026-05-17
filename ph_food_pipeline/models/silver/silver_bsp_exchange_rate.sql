@@ -11,16 +11,19 @@ WITH source AS (
 
 cleaned AS (
     SELECT
-        TRY_CAST(FETCH_DATE AS DATE)        AS rate_date,
-        YEAR(TRY_CAST(FETCH_DATE AS DATE))  AS rate_year,
-        MONTH(TRY_CAST(FETCH_DATE AS DATE)) AS rate_month,
-        TRIM(BASE_CURRENCY)                 AS base_currency,
-        TRIM(TARGET_CURRENCY)               AS target_currency,
+        TRY_CAST(MONTH_DATE AS DATE)        AS rate_month_date,
+        TRY_CAST(YEAR AS INT)               AS rate_year,
+        TRY_CAST(MONTH AS INT)              AS rate_month,
+        TRIM(MONTH_NAME)                    AS rate_month_name,
         TRY_CAST(USD_PHP_RATE AS FLOAT)     AS usd_php_rate,
+        TRY_CAST(NUM_TRADING_DAYS AS INT)   AS num_trading_days,
         TRIM(SOURCE)                        AS data_source,
         CURRENT_TIMESTAMP()                 AS created_at
     FROM source
-    WHERE USD_PHP_RATE IS NOT NULL
+    WHERE
+        MONTH_DATE IS NOT NULL
+        AND USD_PHP_RATE IS NOT NULL
 )
 
 SELECT * FROM cleaned
+ORDER BY rate_month_date

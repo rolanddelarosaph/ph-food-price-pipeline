@@ -133,32 +133,54 @@ def ingest_psa_cpi(conn) -> None:
 
 # ── BSP Exchange Rate ──────────────────────────────────────────────────────────
 def ingest_bsp(conn) -> None:
-    logger.info("[BSP] Fetching live USD/PHP exchange rate...")
+    logger.info("[BSP] Loading monthly exchange rate data...")
     try:
-        import urllib.request
+        from src.config import BSP_MONTHLY_FILE, BSP_API_URL
         import json
+        import urllib.request
         from datetime import date
 
-        with urllib.request.urlopen(BSP_API_URL, timeout=15) as response:
-            data = json.loads(response.read().decode())
+        # ── Load historical monthly rates from file ───────────────────────
+        df_historical = pd.read_csv(BSP_MONTHLY_FILE)
+        df_historical['source'] = 'bsp_historical_file'
+        logger.info(f"  → Historical monthly rates loaded: {len(df_historical)} rows")
 
-        php_rate = data["usd"]["php"]
-        fetch_date = date.today().isoformat()
+        # ── Fetch current month rate from live API ────────────────────────
+        try:
+            with urllib.request.urlopen(BSP_API_URL, timeout=15) as response:
+                data = json.loads(response.read().decode())
+            php_rate = data["usd"]["php"]
+            today = date.today()
+            current_month = f"{today.year}-{str(today.month).zfill(2)}-01"
 
-        records = [{
-            "fetch_date":    fetch_date,
-            "base_currency": "USD",
-            "target_currency": "PHP",
-            "usd_php_rate":  php_rate,
-            "source":        "currency-api.pages.dev",
-        }]
+            # Only append if this month is not already in historical file
+            existing_months = df_historical['month_date'].tolist()
+            if current_month not in existing_months:
+                new_row = pd.DataFrame([{
+                    'month_date':       current_month,
+                    'year':             today.year,
+                    'month':            today.month,
+                    'month_name':       today.strftime('%b'),
+                    'usd_php_rate':     round(php_rate, 4),
+                    'num_trading_days': 1,
+                    'source':           'bsp_live_api',
+                }])
+                df_historical = pd.concat([df_historical, new_row], ignore_index=True)
 
-        df = pd.DataFrame(records)
-        logger.info(f"  → USD/PHP rate today: {php_rate}")
-        load_dataframe_to_snowflake(df, "bronze_bsp_exchange_rate", conn)
+                # Save back to file so it compounds
+                df_historical.to_csv(BSP_MONTHLY_FILE, index=False)
+                logger.info(f"  → New month appended: {current_month} @ {php_rate:.4f}")
+            else:
+                logger.info(f"  → Current month {current_month} already exists, skipping append")
+
+        except Exception as e:
+            logger.warning(f"  Live API fetch failed: {e} — using historical data only")
+
+        logger.info(f"  → Total BSP monthly rows: {len(df_historical)}")
+        load_dataframe_to_snowflake(df_historical, "bronze_bsp_exchange_rate", conn)
 
     except Exception as e:
-        logger.warning(f"  Exchange rate API failed: {e}")
+        logger.warning(f"  BSP load failed: {e}")
         logger.warning("  Skipping BSP ingestion this run.")
 
 
