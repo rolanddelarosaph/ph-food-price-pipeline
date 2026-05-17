@@ -75,7 +75,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 
 | Source | Description | Format | Rows |
 |---|---|---|---|
-| [WFP Open Data](https://data.humdata.org/dataset/wfp-food-prices-for-philippines) | Actual market food prices, 17 PH regions | CSV | 121,512 |
+| [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) | Actual market food prices, 17 PH regions | CSV | 121,512 |
 | [PSA OpenSTAT](https://openstat.psa.gov.ph/) | Official Consumer Price Index by region | Excel (3 files) | 179,289 |
 | [BSP API](https://www.bsp.gov.ph/) | Live USD/PHP exchange rate | JSON API | 101+ (live) |
 
@@ -310,4 +310,4 @@ Run Part 1 first, then Part 2. Both notebooks load from the Gold layer CSV expor
 
 ---
 
-*Data sources: [WFP Open Data](https://data.humdata.org/dataset/wfp-food-prices-for-philippines) · [PSA OpenSTAT](https://openstat.psa.gov.ph/) · [Bangko Sentral ng Pilipinas](https://www.bsp.gov.ph/) · Built: May 2026*
+*Data sources: [[WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) · [PSA OpenSTAT](https://openstat.psa.gov.ph/) · [Bangko Sentral ng Pilipinas](https://www.bsp.gov.ph/) · Built: May 2026*
