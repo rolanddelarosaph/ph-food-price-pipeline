@@ -1,4 +1,4 @@
-# 🇵🇭 Philippine Food Price Analytics Pipeline
+# Philippine Food Price Analytics Pipeline
 
 **Python · Snowflake · dbt · Apache Airflow · Tableau Public**
 
@@ -10,7 +10,7 @@
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ![Pipeline Architecture](docs/architecture.png)
 
@@ -25,7 +25,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Project Overview](#-project-overview)
 - [Tech Stack](#-tech-stack)
@@ -42,7 +42,7 @@
 
 ---
 
-## 📌 Project Overview
+##  Project Overview
 
 This is an end-to-end cloud data pipeline that ingests real Philippine food price data from three government and institutional sources, transforms it through a Medallion Architecture in Snowflake, and serves it to a live Tableau dashboard covering all 17 regions of the Philippines.
 
@@ -58,7 +58,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 
 ---
 
-## 🔧 Tech Stack
+##  Tech Stack
 
 | Layer | Tool | Purpose |
 |---|---|---|
@@ -71,7 +71,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 
 ---
 
-## 📂 Data Sources
+##  Data Sources
 
 | Source | Description | Format | Rows |
 |---|---|---|---|
@@ -81,7 +81,7 @@ On top of the pipeline, two Jupyter notebooks perform the deeper statistical wor
 
 ---
 
-## 🗂️ Project Structure
+##  Project Structure
 
 ```
 ph-food-price-pipeline/
@@ -144,7 +144,7 @@ ph-food-price-pipeline/
 
 ---
 
-## 🥉 Bronze Layer — Raw Ingestion
+##  Bronze Layer — Raw Ingestion
 
 Three tables loaded as-is from each source. No transformations. The Bronze layer preserves source data exactly as received.
 
@@ -156,7 +156,7 @@ Three tables loaded as-is from each source. No transformations. The Bronze layer
 
 ---
 
-## 🥈 Silver Layer — Cleaned & Standardized
+##  Silver Layer — Cleaned & Standardized
 
 dbt models clean and standardize each Bronze table before it reaches the analytical layer.
 
@@ -168,7 +168,7 @@ dbt models clean and standardize each Bronze table before it reaches the analyti
 
 ---
 
-## 🥇 Gold Layer — Star Schema
+##  Gold Layer — Star Schema
 
 Analytics-ready star schema built from the Silver tables, designed for direct Tableau consumption and ad-hoc SQL analysis.
 
@@ -184,7 +184,7 @@ Key fact table columns include `price_php`, `price_usd` (historical BSP rate), `
 
 ---
 
-## ✅ Data Quality Tests
+##  Data Quality Tests
 
 20 dbt tests enforced across all Silver and Gold models — all passing:
 
@@ -214,7 +214,7 @@ Schedule: 0 6 1 * *   →   6:00 AM on the 1st of every month
 
 ---
 
-## 📈 Key Findings
+##  Key Findings
 
 > Sourced from the Gold layer, Tableau dashboard, and analytical notebooks.
 
@@ -226,7 +226,7 @@ Schedule: 0 6 1 * *   →   6:00 AM on the 1st of every month
 
 ---
 
-## 📓 Analytical Notebooks
+##  Analytical Notebooks
 
 The two notebooks in `notebooks/` perform statistical analysis on the Gold layer export from Snowflake. This is where the pipeline output becomes insight — the notebooks are the primary source of the findings above.
 
@@ -270,7 +270,7 @@ This notebook focuses on two analyses: regional inflation gap decomposition usin
 
 ---
 
-## 🚀 How to Run
+##  How to Run
 
 ### Prerequisites
 - Python 3.8+
