@@ -16,7 +16,7 @@
 
 ---
 
-## 📊 Live Dashboard
+##  Live Dashboard
 
 [![Philippine Food Price Analytics Dashboard](docs/ph_food_price_dashboard.png)](https://public.tableau.com/app/profile/roland.dela.rosa/viz/PHFoodPriceDashboard/DASHBOARD)
 
