@@ -240,7 +240,7 @@ This notebook covers exploratory analysis across all 17 regions and 72 commoditi
 **Exploratory findings:**
 - National Capital Region is the most expensive region at ₱161.16/kg average; Bangsamoro Autonomous Region is the least expensive at ₱96.59/kg — a ₱64.56 gap across the same food basket
 - Meat, Fish and Eggs is the most volatile and fastest-rising category, up 80.6% over 5 years
-- The peso depreciated 10.5% from 2018 to 2023 (₱47.96 → ₱58.82 per USD)
+- The peso depreciated 22.6% from 2018 to 2023 (₱47.96 → ₱58.82 per USD)
 
 **BSP lag correlation results:**
 - Contemporaneous (same month): r = 0.32, p = 0.007 — significant
