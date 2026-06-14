@@ -1,0 +1,27 @@
+# ============================================================
+# Dockerfile.pipeline
+# Containerizes the Python ingestion pipeline (main.py)
+# Credentials are injected at runtime via --env-file .env
+# ============================================================
+
+FROM python:3.11-slim
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Install system dependencies needed by some Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies first (cached layer — only rebuilds if requirements.txt changes)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code and data into the container
+COPY src/ ./src/
+COPY main.py .
+COPY data/ ./data/
+
+# Default command — runs the ingestion pipeline
+CMD ["python", "main.py"]
