@@ -7,6 +7,7 @@ End-to-end cloud ELT pipeline ingesting real Philippine government food price da
 [![Snowflake](https://img.shields.io/badge/Snowflake-Data%20Warehouse-29B5E8?logo=snowflake)](https://www.snowflake.com/)
 [![dbt](https://img.shields.io/badge/dbt-Transformations-FF694A?logo=dbt)](https://www.getdbt.com/)
 [![Airflow](https://img.shields.io/badge/Apache%20Airflow-Orchestration-E27B34?logo=apacheairflow)](https://airflow.apache.org/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker)](https://www.docker.com/)
 
 ---
 
@@ -33,9 +34,6 @@ All 17 Philippine regions · 74 food commodities · 2000–2023 · Monthly granu
 - [Data Sources](#data-sources)
 - [Project Structure](#project-structure)
 - [Pipeline Design](#pipeline-design)
-  - [Bronze — Raw Ingestion](#bronze--raw-ingestion)
-  - [Silver — Cleaned and Standardized](#silver--cleaned-and-standardized)
-  - [Gold — Star Schema](#gold--star-schema)
 - [Data Quality](#data-quality)
 - [Orchestration](#orchestration)
 - [Analytics Layer](#analytics-layer)
@@ -48,17 +46,17 @@ All 17 Philippine regions · 74 food commodities · 2000–2023 · Monthly granu
 
 This pipeline ingests food price data from three real Philippine government and institutional sources, transforms it through a layered Medallion Architecture in Snowflake, and delivers an analytics-ready star schema serving a live Tableau dashboard across all 17 Philippine regions.
 
-The pipeline runs automatically on the 1st of every month via a 4-task Airflow DAG on Astronomer Cloud — zero manual intervention after deployment. dbt handles all SQL transformations and enforces 20 data quality tests before any data reaches the Gold layer. A Python analytical layer on top of the Gold export covers exchange rate lag analysis and regional price forecasting.
+The pipeline runs automatically on the 1st of every month via a 4-task Airflow DAG on Astronomer Cloud — zero manual intervention after deployment. dbt handles all SQL transformations and enforces 20 data quality tests before any data reaches the Gold layer. The ingestion pipeline is fully containerized with Docker for reproducible execution on any machine.
 
 **Engineering highlights:**
 
 - Automated monthly ELT pipeline — no manual execution required
+- Containerized ingestion pipeline via Docker — fully reproducible across any environment
 - Modular ingestion layer handling three distinct source formats (CSV, Excel, live JSON API)
 - BSP exchange rate ingested via append-only pattern — builds a compounding historical time series across runs
 - dbt transformation workflow with full lineage across Bronze, Silver, and Gold
 - 20 dbt data quality tests gate every pipeline run — bad data never reaches Gold
 - Analytics-ready star schema with pre-computed `price_to_cpi_ratio` serving as the core analytical metric
-- Reproducible pipeline — `python main.py` runs the full stack from ingestion to Gold
 
 ---
 
@@ -66,6 +64,7 @@ The pipeline runs automatically on the 1st of every month via a 4-task Airflow D
 
 | Layer | Tool | Purpose |
 |---|---|---|
+| Containerization | Docker | Packages the ingestion pipeline for reproducible execution on any machine |
 | Ingestion | Python 3.12 | Fetch and load from CSV, Excel, and live JSON API into Snowflake Bronze |
 | Data Warehouse | Snowflake | Cloud warehouse across all three Medallion layers |
 | Transformation | dbt (dbt-snowflake) | SQL modeling, testing, and lineage documentation |
@@ -136,14 +135,15 @@ ph-food-price-pipeline/
 ├── src/
 │   ├── config.py                       # Snowflake connection (env vars)
 │   ├── ingest.py                       # Ingestion functions — WFP, PSA, BSP
-│   └── categorical_insert.py           # Dimension insert helpers
-│
-├── sql/
-│   └── initialize_food_pipeline.sql    # Snowflake setup script
+│   └── categorical_insert.py
 │
 ├── main.py                             # Pipeline entry point
-├── requirements.txt
-└── Dockerfile                          # Astronomer deployment config
+├── requirements.txt                    # Python dependencies
+├── Dockerfile                          # Astronomer Cloud deployment config
+├── Dockerfile.pipeline                 # Docker container for local ingestion pipeline
+├── .dockerignore                       # Files excluded from Docker build context
+├── .env.example                        # Credential template (never commit .env)
+└── README.md
 ```
 
 ---
@@ -162,7 +162,7 @@ Three ingestion scripts load each source into its own Bronze table in Snowflake 
 | `bronze_psa_cpi` | PSA Excel (3 files) | 179,289 |
 | `bronze_bsp_exchange_rate` | BSP historical CSV + live API | 101+ (compounding) |
 
-**BSP append-only design:** Each monthly run calls the BSP API, extracts the current USD/PHP rate, and appends one new row to the Bronze table. The table is never overwritten — it compounds across every run, building a true historical time series that can be joined to food prices for lag analysis.
+**BSP append-only design:** Each monthly run calls the BSP API, extracts the current USD/PHP rate, and appends one new row to the Bronze table. The table is never overwritten — it compounds across every run, building a true historical time series that enables lag correlation analysis.
 
 ---
 
@@ -171,16 +171,12 @@ Three ingestion scripts load each source into its own Bronze table in Snowflake 
 Three dbt models transform each Bronze table into a clean, typed, standardized Silver table.
 
 - `silver_food_prices` — standardizes region and commodity names, casts dates and prices, removes duplicates via `ROW_NUMBER()` window function
-- `silver_psa_cpi` — unpivots PSA CPI from wide format (regions as columns) to long format (one row per region per month), enabling joins to food price data
+- `silver_psa_cpi` — unpivots PSA CPI from wide format to long format, enabling joins to food price data
 - `silver_bsp_exchange_rate` — casts date and rate columns, validates positive values
-
-All Silver models use `ref()` to reference their Bronze source, establishing lineage that dbt tracks automatically.
 
 ---
 
 ### Gold — Star Schema
-
-A star schema built from the Silver tables, designed for direct Tableau consumption and analytical SQL queries.
 
 ```
 fact_food_prices (121,512 rows)
@@ -190,17 +186,12 @@ fact_food_prices (121,512 rows)
     └── dim_market      (108 rows — local markets across all regions)
 ```
 
-Key fact table columns:
-
 | Column | Description |
 |---|---|
 | `price_php` | Market price in Philippine Peso |
 | `price_usd` | Price converted at historical BSP rate |
-| `price_usd_current_rate` | Price converted at live BSP rate |
 | `regional_food_cpi` | Official PSA CPI for that region and month |
 | `price_to_cpi_ratio` | Market price ÷ regional CPI × 100 — core analytical metric |
-
-`price_to_cpi_ratio` values above 100 indicate that actual market prices are rising faster than the official CPI for that region — the key signal this pipeline was built to surface.
 
 ---
 
@@ -212,13 +203,11 @@ Key fact table columns:
 Done. PASS=20  WARN=0  ERROR=0  SKIP=0  TOTAL=20
 ```
 
-Tests cover `not_null` and `unique` constraints on all primary keys, `accepted_values` on categorical columns, and `relationships` checks between the fact table and all four dimension tables. The dbt test task is the final step in the Airflow DAG — if any test fails, the pipeline halts before bad data reaches Gold and the previous successful run remains intact.
+Tests cover `not_null` and `unique` constraints on all primary keys, `accepted_values` on categorical columns, and `relationships` checks between the fact table and all four dimension tables.
 
 ---
 
 ## Orchestration
-
-Monthly automated pipeline on Apache Airflow deployed via Astronomer Cloud.
 
 ```
 Schedule: 0 6 1 * *   →   6:00 AM on the 1st of every month
@@ -232,80 +221,79 @@ Schedule: 0 6 1 * *   →   6:00 AM on the 1st of every month
   [run_dbt_tests]       20 data quality checks — halts pipeline on any failure
 ```
 
-Task retry configuration: 2 retries with a 5-minute delay before marking a task as failed. DAG uses `catchup=False` to prevent historical backfill on deployment.
-
 ---
 
 ## Analytics Layer
 
-Two Jupyter notebooks perform statistical analysis on the Gold layer export. These sit outside the pipeline and are run independently.
-
 **Part 1 — EDA and BSP Exchange Rate Analysis**
-`notebooks/ph_food_price_part1_eda_bsp.ipynb`
-
-Regional price distribution, commodity trend analysis, and BSP lag correlation study on the 2018–2023 period where all three sources overlap.
 
 BSP lag correlation results:
 
 | Lag | r | p-value | Significant |
 |---|---|---|---|
-| 0 months (contemporaneous) | 0.32 | 0.007 | Yes |
+| 0 months | 0.32 | 0.007 | Yes |
 | 1 month | 0.29 | 0.018 | Yes |
 | 2 months | 0.25 | 0.042 | Yes |
 | 3 months | 0.20 | 0.101 | No |
 
-Exchange rate pressure appears in market prices 1–2 months after depreciation, particularly in import-linked commodity categories.
-
 **Part 2 — Inflation Gap Analysis and Forecasting**
-`notebooks/ph_food_price_part2_inflation_forecasting.ipynb`
 
-Regional inflation gap decomposition using `price_to_cpi_ratio` from the Gold layer. Prophet time series forecasting fitted with and without the BSP exchange rate as an external regressor — the BSP-enhanced model diverges from baseline during depreciation periods, confirming exchange rate adds genuine forecast signal.
+Prophet time series forecasting with and without BSP exchange rate as an external regressor — the BSP-enhanced model diverges from baseline during depreciation periods, confirming exchange rate adds genuine forecast signal.
 
 ---
 
 ## Key Findings
 
-Sourced from the Gold layer, Tableau dashboard, and analytical notebooks.
-
 - NCR food prices run 60+ index points above official PSA CPI — the largest inflation gap nationally
-- Luzon is 19.7% more expensive than Mindanao on average (₱130.55 vs ₱109.06) for the same WFP food basket
-- Meat, Fish, and Eggs surged 80.6% from 2018 to 2023 (₱144/kg to ₱260/kg) — steepest increase of any commodity category
-- Peso depreciation leads food price increases by 1–2 months (r=0.29, p=0.018 at lag 1) — exchange rate is a leading indicator for import-linked food costs
-- BARMM and Northern Mindanao show negative inflation gaps — market prices run below the CPI index in major agricultural production zones
+- Luzon is 19.7% more expensive than Mindanao on average for the same WFP food basket
+- Meat, Fish, and Eggs surged 80.6% from 2018 to 2023 — steepest increase of any commodity category
+- Peso depreciation leads food price increases by 1–2 months (r=0.29, p=0.018 at lag 1)
+- BARMM and Northern Mindanao show negative inflation gaps — market prices run below CPI in major agricultural production zones
 
 ---
 
 ## How to Run
 
-### Prerequisites
+### Option 1 — Docker (Recommended)
 
-- Python 3.8+
-- Snowflake account
-- dbt-snowflake installed
-- Astronomer account for Airflow deployment, or local Airflow setup
-
-### Setup
+The ingestion pipeline is containerized for reproducible execution on any machine.
 
 ```bash
 # Clone the repository
 git clone https://github.com/rolanddelarosaph/ph-food-price-pipeline.git
 cd ph-food-price-pipeline
 
-# Install dependencies
+# Copy the credential template and fill in your Snowflake credentials
+cp .env.example .env
+# Edit .env with your actual values
+
+# Build the Docker image
+docker build -f Dockerfile.pipeline -t ph-food-pipeline .
+
+# Run the ingestion pipeline inside the container
+docker run --env-file .env ph-food-pipeline
+```
+
+Credentials are injected at runtime via `--env-file` and never baked into the image.
+
+---
+
+### Option 2 — Local Python
+
+```bash
+# Clone and install
+git clone https://github.com/rolanddelarosaph/ph-food-price-pipeline.git
+cd ph-food-price-pipeline
 pip install -r requirements.txt
 
-# Create a .env file with your Snowflake credentials
-# SNOWFLAKE_ACCOUNT=your_account
-# SNOWFLAKE_USER=your_user
-# SNOWFLAKE_PASSWORD=your_password
-# SNOWFLAKE_WAREHOUSE=your_warehouse
-# SNOWFLAKE_DATABASE=ph_food_pipeline
-# SNOWFLAKE_ROLE=your_role
+# Set up credentials
+cp .env.example .env
+# Edit .env with your Snowflake credentials
 
 # Initialize Snowflake schema
 # Run sql/initialize_food_pipeline.sql in your Snowflake worksheet
 
-# Run the full pipeline
+# Run the ingestion pipeline
 python main.py
 
 # Run dbt transformations and tests
@@ -321,7 +309,7 @@ dbt test
 jupyter notebook notebooks/
 ```
 
-Run Part 1 before Part 2. Both notebooks read from `data/exports/ph_food_price_gold.csv` — the Gold layer export from Snowflake.
+Run Part 1 before Part 2. Both notebooks read from `data/exports/ph_food_price_gold.csv`.
 
 ---
 
