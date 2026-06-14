@@ -1,6 +1,6 @@
 # Philippine Food Price Analytics Pipeline
 
-**Python · Snowflake · dbt · Apache Airflow · Tableau Public**
+End-to-end cloud ELT pipeline ingesting real Philippine government food price data into Snowflake, transforming through a Medallion Architecture with dbt, and serving an analytics-ready star schema to a live Tableau dashboard — fully automated via Apache Airflow on Astronomer Cloud.
 
 [![Dashboard](https://img.shields.io/badge/Tableau-Live%20Dashboard-blue?logo=tableau)](https://public.tableau.com/app/profile/roland.dela.rosa/viz/PHFoodPriceDashboard/DASHBOARD)
 [![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
@@ -16,95 +16,99 @@
 
 ---
 
-##  Live Dashboard
+## Live Dashboard
 
 [![Philippine Food Price Analytics Dashboard](docs/ph_food_price_dashboard.png)](https://public.tableau.com/app/profile/roland.dela.rosa/viz/PHFoodPriceDashboard/DASHBOARD)
 
-> **[→ Open interactive dashboard on Tableau Public](https://public.tableau.com/app/profile/roland.dela.rosa/viz/PHFoodPriceDashboard/DASHBOARD)**
-> All 17 Philippine regions · 74 food commodities · 2000–2023 · Monthly grain
+**[→ Open interactive dashboard on Tableau Public](https://public.tableau.com/app/profile/roland.dela.rosa/viz/PHFoodPriceDashboard/DASHBOARD)**
+
+All 17 Philippine regions · 74 food commodities · 2000–2023 · Monthly granularity
 
 ---
 
 ## Table of Contents
 
-- [Project Overview](#-project-overview)
-- [Tech Stack](#-tech-stack)
-- [Data Sources](#-data-sources)
-- [Project Structure](#️-project-structure)
-- [Bronze — Raw Ingestion](#-bronze-layer--raw-ingestion)
-- [Silver — Cleaned & Standardized](#-silver-layer--cleaned--standardized)
-- [Gold — Star Schema](#-gold-layer--star-schema)
-- [Data Quality Tests](#-data-quality-tests)
-- [Pipeline Orchestration](#️-pipeline-orchestration)
-- [Key Findings](#-key-findings)
-- [Analytical Notebooks](#-analytical-notebooks)
-- [How to Run](#-how-to-run)
+- [Project Overview](#project-overview)
+- [Tech Stack](#tech-stack)
+- [Data Sources](#data-sources)
+- [Project Structure](#project-structure)
+- [Pipeline Design](#pipeline-design)
+  - [Bronze — Raw Ingestion](#bronze--raw-ingestion)
+  - [Silver — Cleaned and Standardized](#silver--cleaned-and-standardized)
+  - [Gold — Star Schema](#gold--star-schema)
+- [Data Quality](#data-quality)
+- [Orchestration](#orchestration)
+- [Analytics Layer](#analytics-layer)
+- [Key Findings](#key-findings)
+- [How to Run](#how-to-run)
 
 ---
 
-##  Project Overview
+## Project Overview
 
-This is an end-to-end cloud data pipeline that ingests real Philippine food price data from three government and institutional sources, transforms it through a Medallion Architecture in Snowflake, and serves it to a live Tableau dashboard covering all 17 regions of the Philippines.
+This pipeline ingests food price data from three real Philippine government and institutional sources, transforms it through a layered Medallion Architecture in Snowflake, and delivers an analytics-ready star schema serving a live Tableau dashboard across all 17 Philippine regions.
 
-The pipeline is built on the Modern Data Stack — Python handles ingestion, dbt handles SQL transformations and testing, Apache Airflow on Astronomer Cloud handles monthly scheduling, and Snowflake serves as the cloud data warehouse. The entire flow from raw source data to analytics-ready Gold tables runs automatically every month without manual intervention.
+The pipeline runs automatically on the 1st of every month via a 4-task Airflow DAG on Astronomer Cloud — zero manual intervention after deployment. dbt handles all SQL transformations and enforces 20 data quality tests before any data reaches the Gold layer. A Python analytical layer on top of the Gold export covers exchange rate lag analysis and regional price forecasting.
 
-On top of the pipeline, two Jupyter notebooks perform the deeper statistical work: exploratory analysis across all regions and commodities, BSP exchange rate lag correlation, inflation gap decomposition by region, and Prophet time series forecasting for rice prices — demonstrating how statistical methods extend what the pipeline surfaces.
+**Engineering highlights:**
 
-**What this pipeline processes:**
-- 121,512 rows of WFP market food prices across 17 Philippine regions
-- 179,289 rows of PSA Consumer Price Index data (regional, monthly)
-- 101+ rows of BSP monthly USD/PHP exchange rates — historical CSV from Jan 2018, with live API appending one new row each monthly run
-- 20 dbt data quality tests — all passing
+- Automated monthly ELT pipeline — no manual execution required
+- Modular ingestion layer handling three distinct source formats (CSV, Excel, live JSON API)
+- BSP exchange rate ingested via append-only pattern — builds a compounding historical time series across runs
+- dbt transformation workflow with full lineage across Bronze, Silver, and Gold
+- 20 dbt data quality tests gate every pipeline run — bad data never reaches Gold
+- Analytics-ready star schema with pre-computed `price_to_cpi_ratio` serving as the core analytical metric
+- Reproducible pipeline — `python main.py` runs the full stack from ingestion to Gold
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
 | Layer | Tool | Purpose |
 |---|---|---|
-| Ingestion | Python 3.12 | Fetch, parse, and load from CSV, Excel, and live JSON API |
-| Storage | Snowflake | Cloud data warehouse across all three medallion layers |
-| Transformation | dbt (dbt-snowflake) | SQL modeling, testing, and documentation |
-| Orchestration | Apache Airflow on Astronomer | Monthly scheduling and task dependency management |
+| Ingestion | Python 3.12 | Fetch and load from CSV, Excel, and live JSON API into Snowflake Bronze |
+| Data Warehouse | Snowflake | Cloud warehouse across all three Medallion layers |
+| Transformation | dbt (dbt-snowflake) | SQL modeling, testing, and lineage documentation |
+| Orchestration | Apache Airflow on Astronomer Cloud | Monthly scheduling and task dependency management |
 | Visualization | Tableau Public | Live interactive dashboard |
-| Analysis | pandas, Prophet, statsmodels | EDA, forecasting, inflation gap analysis |
+| Analytics | pandas, Prophet, statsmodels | Post-pipeline EDA, forecasting, and lag correlation |
 
 ---
 
-##  Data Sources
+## Data Sources
 
 | Source | Description | Format | Rows |
 |---|---|---|---|
-| [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) | Actual market food prices, 17 PH regions | CSV | 121,512 |
+| [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) | Market food prices, 17 Philippine regions | CSV | 121,512 |
 | [PSA OpenSTAT](https://openstat.psa.gov.ph/) | Official Consumer Price Index by region | Excel (3 files) | 179,289 |
-| [BSP / fawazahmed0 Currency API](https://www.bsp.gov.ph/) | Monthly USD/PHP rate — 100 months historical (Jan 2018–Apr 2026) + live API appends current month each run | CSV + JSON API | 101+ (compounding) |
+| [BSP / fawazahmed0 Currency API](https://www.bsp.gov.ph/) | Monthly USD/PHP rate — 101 months historical + live API appends one row per run | CSV + JSON API | 101+ (compounding) |
 
 ---
 
-##  Project Structure
+## Project Structure
 
 ```
 ph-food-price-pipeline/
 │
 ├── dags/
-│   └── ph_food_pipeline_dag.py         # Airflow DAG — monthly 4-task pipeline
+│   └── ph_food_pipeline_dag.py         # Airflow DAG — 4-task monthly pipeline
 │
 ├── data/
-│   ├── raw/                            # Source data files
+│   ├── raw/                            # Source files
 │   │   ├── wfp_food_prices_phl.csv
 │   │   ├── psa_cpi_2018_2020.xlsx
 │   │   ├── psa_cpi_2021_2023.xlsx
 │   │   ├── psa_cpi_2024_2026.xlsx
-│   │   └── bsp_monthly_rates.csv       # BSP historical rates — compounds each run
+│   │   └── bsp_monthly_rates.csv
 │   └── exports/
-│       └── ph_food_price_gold.csv      # Gold layer export used by notebooks
+│       └── ph_food_price_gold.csv      # Gold layer export for notebooks
 │
-├── docs/                               # Architecture diagram and dashboard assets
+├── docs/
 │   ├── architecture.png
 │   ├── ph_food_price_dashboard.png
 │   └── ph_food_price_dashboard.twbx
 │
-├── notebooks/                          # Analytical notebooks
+├── notebooks/
 │   ├── ph_food_price_part1_eda_bsp.ipynb
 │   └── ph_food_price_part2_inflation_forecasting.ipynb
 │
@@ -130,8 +134,8 @@ ph-food-price-pipeline/
 │   └── dbt_project.yml
 │
 ├── src/
-│   ├── config.py                       # Snowflake connection config (env vars)
-│   ├── ingest.py                       # Ingestion functions (WFP, PSA, BSP)
+│   ├── config.py                       # Snowflake connection (env vars)
+│   ├── ingest.py                       # Ingestion functions — WFP, PSA, BSP
 │   └── categorical_insert.py           # Dimension insert helpers
 │
 ├── sql/
@@ -144,9 +148,13 @@ ph-food-price-pipeline/
 
 ---
 
-##  Bronze Layer — Raw Ingestion
+## Pipeline Design
 
-Three tables loaded as-is from each source. No transformations. The Bronze layer preserves source data exactly as received.
+The pipeline follows an ELT pattern on Snowflake. Python ingests raw data into Bronze without transformation. dbt handles all cleaning, standardization, and modeling in Silver and Gold. The separation ensures the raw source data is always preserved and every transformation is version-controlled in SQL.
+
+### Bronze — Raw Ingestion
+
+Three ingestion scripts load each source into its own Bronze table in Snowflake as-is. No transformations at this layer. Bronze is the immutable audit trail.
 
 | Table | Source | Rows |
 |---|---|---|
@@ -154,129 +162,127 @@ Three tables loaded as-is from each source. No transformations. The Bronze layer
 | `bronze_psa_cpi` | PSA Excel (3 files) | 179,289 |
 | `bronze_bsp_exchange_rate` | BSP historical CSV + live API | 101+ (compounding) |
 
----
-
-##  Silver Layer — Cleaned & Standardized
-
-dbt models clean and standardize each Bronze table before it reaches the analytical layer.
-
-- Region names standardized across all three sources
-- PSA CPI unpivoted from wide format to long format (one row per region per month)
-- Dates cast from `VARCHAR` to `DATE`; numeric values cast to `FLOAT` / `INT`
-- Duplicates removed using `ROW_NUMBER()` window functions
-- `NULL` values filtered on critical columns
+**BSP append-only design:** Each monthly run calls the BSP API, extracts the current USD/PHP rate, and appends one new row to the Bronze table. The table is never overwritten — it compounds across every run, building a true historical time series that can be joined to food prices for lag analysis.
 
 ---
 
-##  Gold Layer — Star Schema
+### Silver — Cleaned and Standardized
 
-Analytics-ready star schema built from the Silver tables, designed for direct Tableau consumption and ad-hoc SQL analysis.
+Three dbt models transform each Bronze table into a clean, typed, standardized Silver table.
+
+- `silver_food_prices` — standardizes region and commodity names, casts dates and prices, removes duplicates via `ROW_NUMBER()` window function
+- `silver_psa_cpi` — unpivots PSA CPI from wide format (regions as columns) to long format (one row per region per month), enabling joins to food price data
+- `silver_bsp_exchange_rate` — casts date and rate columns, validates positive values
+
+All Silver models use `ref()` to reference their Bronze source, establishing lineage that dbt tracks automatically.
+
+---
+
+### Gold — Star Schema
+
+A star schema built from the Silver tables, designed for direct Tableau consumption and analytical SQL queries.
 
 ```
 fact_food_prices (121,512 rows)
     ├── dim_region      (18 rows  — 17 PH regions + national)
-    ├── dim_commodity   (73 rows  — 74 food commodities)
-    ├── dim_date        (285 rows — monthly, Jan 2000 – Nov 2023)
+    ├── dim_commodity   (73 rows  — food commodities)
+    ├── dim_date        (285 rows — monthly spine, Jan 2000 – Nov 2023)
     └── dim_market      (108 rows — local markets across all regions)
 ```
 
-Key fact table columns include `price_php`, `price_usd` (historical BSP rate), `price_usd_current_rate` (live BSP rate), `regional_food_cpi`, and `price_to_cpi_ratio` — the core metric measuring how far market prices diverge from the official CPI index.
+Key fact table columns:
+
+| Column | Description |
+|---|---|
+| `price_php` | Market price in Philippine Peso |
+| `price_usd` | Price converted at historical BSP rate |
+| `price_usd_current_rate` | Price converted at live BSP rate |
+| `regional_food_cpi` | Official PSA CPI for that region and month |
+| `price_to_cpi_ratio` | Market price ÷ regional CPI × 100 — core analytical metric |
+
+`price_to_cpi_ratio` values above 100 indicate that actual market prices are rising faster than the official CPI for that region — the key signal this pipeline was built to surface.
 
 ---
 
-##  Data Quality Tests
+## Data Quality
 
-20 dbt tests enforced across all Silver and Gold models — all passing:
+20 dbt tests enforced across all Silver and Gold models:
 
 ```
 Done. PASS=20  WARN=0  ERROR=0  SKIP=0  TOTAL=20
 ```
 
-Tests cover `not_null` and `unique` constraints on all primary keys and critical columns. If any test fails, the pipeline halts before bad data reaches the Gold layer.
+Tests cover `not_null` and `unique` constraints on all primary keys, `accepted_values` on categorical columns, and `relationships` checks between the fact table and all four dimension tables. The dbt test task is the final step in the Airflow DAG — if any test fails, the pipeline halts before bad data reaches Gold and the previous successful run remains intact.
 
 ---
 
-## ⚙️ Pipeline Orchestration
+## Orchestration
 
-Monthly automated pipeline on **Apache Airflow** deployed via **Astronomer Cloud**:
+Monthly automated pipeline on Apache Airflow deployed via Astronomer Cloud.
 
 ```
 Schedule: 0 6 1 * *   →   6:00 AM on the 1st of every month
 
-  [ingest_bronze]       Python fetches WFP, PSA, and BSP data into Snowflake
-        ↓
+  [ingest_bronze]       Python fetches WFP, PSA, and BSP into Snowflake Bronze
+        |
   [run_silver_models]   dbt cleans and standardizes all three sources
-        ↓
+        |
   [run_gold_models]     dbt builds the star schema
-        ↓
-  [run_dbt_tests]       20 data quality checks — pipeline stops here on failure
+        |
+  [run_dbt_tests]       20 data quality checks — halts pipeline on any failure
 ```
 
----
-
-##  Key Findings
-
-> Sourced from the Gold layer, Tableau dashboard, and analytical notebooks.
-
-- **NCR has the largest inflation gap** — market food prices in Metro Manila consistently run above what the official PSA CPI index implies, with the gap widening post-2020 and not fully recovering. This matters because social protection programs calibrated to official inflation may be systematically underestimating the pressure urban households face
-- **BARMM and Northern Mindanao show negative gaps** — actual market prices in these major agricultural production zones run below the CPI index, a supply advantage that is invisible in national-level statistics
-- **Luzon is 19.7% more expensive than Mindanao** on average (₱130.55 vs ₱109.06) for the same WFP food basket — a persistent regional disparity across the full dataset
-- **Meat, Fish, and Eggs surged +80.6%** from 2018 to 2023, rising from ₱144/kg to ₱260/kg nationally — the steepest increase of any commodity category
-- **Peso depreciation leads food prices by 1–2 months** — BSP lag correlation shows significant results at lag 1 (r = 0.29, p = 0.018) and lag 2 (r = 0.25, p = 0.042), confirming exchange rate as a leading indicator for import-linked food costs
+Task retry configuration: 2 retries with a 5-minute delay before marking a task as failed. DAG uses `catchup=False` to prevent historical backfill on deployment.
 
 ---
 
-##  Analytical Notebooks
+## Analytics Layer
 
-The two notebooks in `notebooks/` perform statistical analysis on the Gold layer export from Snowflake. This is where the pipeline output becomes insight — the notebooks are the primary source of the findings above.
+Two Jupyter notebooks perform statistical analysis on the Gold layer export. These sit outside the pipeline and are run independently.
 
----
-
-### Part 1 — EDA and BSP Exchange Rate Impact
+**Part 1 — EDA and BSP Exchange Rate Analysis**
 `notebooks/ph_food_price_part1_eda_bsp.ipynb`
 
-This notebook covers exploratory analysis across all 17 regions and 72 commodities, followed by a full BSP lag correlation study on 105,183 rows filtered to the 2018–2023 overlap period where all three data sources are complete.
+Regional price distribution, commodity trend analysis, and BSP lag correlation study on the 2018–2023 period where all three sources overlap.
 
-**Exploratory findings:**
-- National Capital Region is the most expensive region at ₱161.16/kg average; Bangsamoro Autonomous Region is the least expensive at ₱96.59/kg — a ₱64.56 gap across the same food basket
-- Meat, Fish and Eggs is the most volatile and fastest-rising category, up 80.6% over 5 years
-- The peso depreciated 22.6% from 2018 to 2023 (₱47.96 → ₱58.82 per USD)
+BSP lag correlation results:
 
-**BSP lag correlation results:**
-- Contemporaneous (same month): r = 0.32, p = 0.007 — significant
-- Lag 1 month: r = 0.29, p = 0.018 — significant
-- Lag 2 months: r = 0.25, p = 0.042 — significant
-- Lag 3 months: r = 0.20, p = 0.101 — not significant
+| Lag | r | p-value | Significant |
+|---|---|---|---|
+| 0 months (contemporaneous) | 0.32 | 0.007 | Yes |
+| 1 month | 0.29 | 0.018 | Yes |
+| 2 months | 0.25 | 0.042 | Yes |
+| 3 months | 0.20 | 0.101 | No |
 
-Exchange rate pressure takes 1–2 months to show up in market prices. Categories with higher import content are more sensitive to this effect than locally produced staples. A linear regression model using the 1-month lag as a predictor was also fitted to quantify the relationship.
+Exchange rate pressure appears in market prices 1–2 months after depreciation, particularly in import-linked commodity categories.
 
----
-
-### Part 2 — Inflation Gap Analysis and Rice Price Forecasting
+**Part 2 — Inflation Gap Analysis and Forecasting**
 `notebooks/ph_food_price_part2_inflation_forecasting.ipynb`
 
-This notebook focuses on two analyses: regional inflation gap decomposition using the `price_to_cpi_ratio` from the Gold layer, and Prophet time series forecasting for rice prices with and without the BSP exchange rate as an external regressor.
-
-**Inflation gap analysis:**
-- The `price_to_cpi_ratio` (market price ÷ regional CPI × 100) is computed at the row level in the Gold layer and analyzed here by region, year, and commodity category
-- A region × year heatmap surfaces which regions diverged most sharply from official CPI and when
-- The post-2020 gap widening in NCR and Central Luzon is the most significant pattern in the dataset
-
-**Rice price forecasting with Prophet:**
-- Two models fitted: baseline (trend + seasonality only) and BSP-enhanced (with monthly exchange rate as external regressor)
-- The BSP-enhanced model diverges from baseline during depreciation periods, confirming the exchange rate adds forecasting signal specifically under currency stress — the periods when food affordability pressure is most acute
-- Seasonal decomposition confirms reliable Q3/Q4 price peaks tied to typhoon season
-- Island-group forecasts show Luzon projecting the steepest continued increase; Mindanao starting from a lower base with more modest growth — national-average forecasts mask very different regional realities
+Regional inflation gap decomposition using `price_to_cpi_ratio` from the Gold layer. Prophet time series forecasting fitted with and without the BSP exchange rate as an external regressor — the BSP-enhanced model diverges from baseline during depreciation periods, confirming exchange rate adds genuine forecast signal.
 
 ---
 
-##  How to Run
+## Key Findings
+
+Sourced from the Gold layer, Tableau dashboard, and analytical notebooks.
+
+- NCR food prices run 60+ index points above official PSA CPI — the largest inflation gap nationally
+- Luzon is 19.7% more expensive than Mindanao on average (₱130.55 vs ₱109.06) for the same WFP food basket
+- Meat, Fish, and Eggs surged 80.6% from 2018 to 2023 (₱144/kg to ₱260/kg) — steepest increase of any commodity category
+- Peso depreciation leads food price increases by 1–2 months (r=0.29, p=0.018 at lag 1) — exchange rate is a leading indicator for import-linked food costs
+- BARMM and Northern Mindanao show negative inflation gaps — market prices run below the CPI index in major agricultural production zones
+
+---
+
+## How to Run
 
 ### Prerequisites
+
 - Python 3.8+
 - Snowflake account
 - dbt-snowflake installed
-- Astronomer account (for Airflow deployment) — or run Airflow locally
+- Astronomer account for Airflow deployment, or local Airflow setup
 
 ### Setup
 
@@ -288,7 +294,7 @@ cd ph-food-price-pipeline
 # Install dependencies
 pip install -r requirements.txt
 
-# Set up environment variables — create a .env file in the project root:
+# Create a .env file with your Snowflake credentials
 # SNOWFLAKE_ACCOUNT=your_account
 # SNOWFLAKE_USER=your_user
 # SNOWFLAKE_PASSWORD=your_password
@@ -296,13 +302,13 @@ pip install -r requirements.txt
 # SNOWFLAKE_DATABASE=ph_food_pipeline
 # SNOWFLAKE_ROLE=your_role
 
-# Initialize Snowflake environment
+# Initialize Snowflake schema
 # Run sql/initialize_food_pipeline.sql in your Snowflake worksheet
 
-# Run the ingestion pipeline
+# Run the full pipeline
 python main.py
 
-# Run dbt transformations
+# Run dbt transformations and tests
 cd ph_food_pipeline
 dbt deps
 dbt run
@@ -315,8 +321,8 @@ dbt test
 jupyter notebook notebooks/
 ```
 
-Run Part 1 first, then Part 2. Both notebooks load from `data/exports/ph_food_price_gold.csv` — the Gold layer export from Snowflake.
+Run Part 1 before Part 2. Both notebooks read from `data/exports/ph_food_price_gold.csv` — the Gold layer export from Snowflake.
 
 ---
 
-*Data sources: [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) · [PSA OpenSTAT](https://openstat.psa.gov.ph/) · [Bangko Sentral ng Pilipinas](https://www.bsp.gov.ph/) · Built: May 2026*
+*Data: [WFP via Kaggle](https://www.kaggle.com/datasets/usmanlovescode/philippines-food-prices-dataset) · [PSA OpenSTAT](https://openstat.psa.gov.ph/) · [Bangko Sentral ng Pilipinas](https://www.bsp.gov.ph/)*
