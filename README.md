@@ -1,6 +1,6 @@
 # Philippine Food Price Analytics Pipeline
 
-End-to-end cloud ELT pipeline ingesting real Philippine government food price data into Snowflake, transforming through a Medallion Architecture with dbt, and serving an analytics-ready star schema to a live Tableau dashboard — fully automated via Apache Airflow on Astronomer Cloud.
+End-to-end cloud ELT pipeline ingesting real Philippine government food price data into Snowflake, transforming through a Medallion Architecture with dbt, and serving an analytics-ready star schema to a live Tableau dashboard and advanced analysis and forecasting model — fully automated via Apache Airflow on Astronomer Cloud.
 
 [![Dashboard](https://img.shields.io/badge/Tableau-Live%20Dashboard-blue?logo=tableau)](https://public.tableau.com/app/profile/roland.dela.rosa/viz/PHFoodPriceDashboard/DASHBOARD)
 [![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
